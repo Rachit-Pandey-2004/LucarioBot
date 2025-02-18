@@ -85,15 +85,8 @@ class PGDB:
             async with self.pool.acquire() as conn:
 
                 query = """
-                SELECT id, 
-                       p_name, 
-                       cp,
-                       lvl,
-                       gender,
-                       iv, 
-                       ST_X(coordinates::geometry) AS longitude, 
-                       ST_Y(coordinates::geometry) AS latitude, 
-                       EXTRACT(EPOCH FROM despawn) AS despawn_timestamp, created
+                SELECT id, p_name, cp,lvl,gender,iv, ST_Y(coordinates::geometry) AS latitude, ST_X(coordinates::geometry) AS longitude,
+                EXTRACT(EPOCH FROM despawn) AS despawn_timestamp, created
                 FROM pokemon_coords 
                 WHERE created > to_timestamp($1) AND created <= to_timestamp($2)  -- Filter out old alerts
                   AND despawn > NOW() 

@@ -58,12 +58,16 @@ async def send_alerts():
                         current_checking_time=current_timestamp
                         )
                     await db.update_last_search(channels,current_timestamp)
+                    i=0
                     for mon in data:
+                        i=i+1
+                        if i>=20:
+                            break;
                         mon_name = mon['p_name']
                         iv = mon['iv']
                         cp = mon['cp']
                         level = mon['lvl']
-                        despawn_time = float(mon['despawn_timestamp'])  # Convert Decimal to float
+                        despawn_time = int(mon['despawn_timestamp'])- (5 * 3600 + 30 * 60)  # Convert Decimal to float
                         gender = mon['gender']
                         pokemon_id = mon['id']
                         latitude, longitude = mon["latitude"], mon["longitude"]
@@ -72,8 +76,6 @@ async def send_alerts():
                         gender_symbol = "♂️" if gender == "M" else "♀️" if gender == "F" else "❓"
                     
                         # Format despawn time
-                        despawn_readable = datetime.fromtimestamp(despawn_time, tz=timezone.utc).strftime('%H:%M:%S UTC')
-
                         # Random Embed Colors
                         colors = [0x1ABC9C, 0x11806A, 0x2ECC71, 0xA84300, 0xFFD700, 0x206694, 0x71368A, 0xE91E63]
                         embed_color = random.choice(colors)
@@ -83,28 +85,18 @@ async def send_alerts():
                         static_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pokemon_id}.png"
 
                         embed = hikari.Embed(
-                            title=f"🚨 Wild {mon_name} Appeared! {gender_symbol}",
                             description=(
-                                f"**IV:** `{iv}%`\n"
-                                f"**CP:** `{cp}`\n"
-                                f"**Level:** `{level}`\n"
-                                f"**Gender:** `{gender_symbol}`"
+                                f"{mon_name} {gender_symbol}\n"
+                                f"**:Iv:** `{int(iv)}%`  | **:Lv:** `{level}` | **:Cp:** `{cp}`\n"
+                                f"Despawns <t:{despawn_time}:R> | (<t:{despawn_time}:t>)"
                             ),
                             color=hikari.Color(embed_color),
                             timestamp=datetime.now(timezone.utc)
                         )
-                        
                         embed.set_thumbnail(gif_url)  # Attempt GIF first
                         embed.set_image(static_url)  # Fallback to static image
-                    
-                        embed.add_field(
-                            name="📍 Coordinates",
-                            value=f"`{latitude}, {longitude}`",
-                            inline=False
-                        )
-                        
-                        embed.set_footer(text=f"🕒 Despawns at: {despawn_readable}")
-                        coordinates = f"{latitude}, {longitude}"
+                        embed.add_field(name="📍 Coordinates", value=f"`{latitude}, {longitude}`", inline=False)
+                        embed.set_footer(text="Lucario Bot",icon="https://cdn.discordapp.com/app-icons/1335953490568282152/1c99a8c52e2fbbecfad4ac0e1bbe882c.png?size=512")
                         #view = RevealButton(coordinates, int(despawn_time))
 
                         # FIX: Convert view to JSON-serializable format
