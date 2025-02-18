@@ -1,5 +1,5 @@
 '''
-need to implement specific geo datatype in redis 
+we can implement geo data storage in future
 '''
 
 from configparser import ConfigParser
@@ -59,10 +59,14 @@ class Caching:
     
 async def test():
     async with Caching() as ch:
-        state = await ch.insert_mon_coords("p1","26.00123, -120.457823",expiry=10)
-        if state:
+        state = await ch.insert_mon_coords("p1","26.00123, -120.457823",expiry=3)
+        await asyncio.sleep(2)
+        state=await ch.check_expired("p1")
+        if not state:
             state = await ch.fetch_mon_coords("p1")
             print(state)
+        else :
+            print("expired . . . ")
 
 if __name__=="__main__":
     asyncio.run(test())

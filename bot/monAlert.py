@@ -8,24 +8,29 @@ from db.channel_db import Channel_Data  # Your DB handler
 from db.mons_data import PGDB
 from time import time
 from datetime import datetime, timezone
+from cache import pokeCache
 
 plugin: lightbulb.BotApp  # Reference to the bot (passed from `bot.py`)
 mclient: miru.Client
-class RevealButton(miru.View):
-    def __init__(self, coordinates: str, despawn_time: int):
-        super().__init__(timeout=despawn_time - round(time()))  # Button expires on despawn
-        self.coordinates = coordinates
 
-    @miru.button(label="Reveal Location", style=hikari.ButtonStyle.PRIMARY)
-    async def reveal(self, ctx: miru.ViewContext,button: miru.Button):
-        """Reveals the coordinates when clicked."""
-        await ctx.respond(f"📍 Coordinates: `{self.coordinates}`", flags=hikari.MessageFlag.EPHEMERAL)
-        self.stop()  # Stop listening to further interactions
+class PokeButton(miru.View):
+    def __init__(self, unique_key: str, timeout: int):
+        super().__init__(timeout=None)
+        self.unique_key = unique_key
 
-    async def on_timeout(self):
-        """Disable button on timeout (despawn time)."""
-        self.clear_items()  # Remove all buttons
-        await self.message.edit(content="⏳ Pokémon has despawned!", components=[])
+    @miru.button(label="🔍Reveal", style=hikari.ButtonStyle.PRIMARY)
+    async def send_coordinates(self, ctx:miru.ViewContext, button: miru.Button):
+        print(ctx.custom_id)
+        async with pokeCache.Caching() as cache:
+            # expired = await cache.check_expired(self.unique_key)
+            # if expired:
+            #     await ctx.respond("This Pokémon has despawned!", flags=hikari.MessageFlag.EPHEMERAL)
+            #     return
+            coords = await cache.fetch_mon_coords(self.unique_key)
+            if not coords== None:
+                await ctx.respond(f"Coordinates: `{coords}`", flags=hikari.MessageFlag.EPHEMERAL)
+            else:
+                await ctx.respond("Coordinates not found.", flags=hikari.MessageFlag.EPHEMERAL)
         
         
 async def send_alerts():
@@ -61,7 +66,7 @@ async def send_alerts():
                     i=0
                     for mon in data:
                         i=i+1
-                        if i>=20:
+                        if i>=10:
                             break;
                         mon_name = mon['p_name']
                         iv = mon['iv']
@@ -95,13 +100,21 @@ async def send_alerts():
                         )
                         embed.set_thumbnail(gif_url)  # Attempt GIF first
                         embed.set_image(static_url)  # Fallback to static image
-                        embed.add_field(name="📍 Coordinates", value=f"`{latitude}, {longitude}`", inline=False)
+                        # embed.add_field(name="📍 Coordinates", value=f"`{latitude}, {longitude}`", inline=False)
                         embed.set_footer(text="Lucario Bot",icon="https://cdn.discordapp.com/app-icons/1335953490568282152/1c99a8c52e2fbbecfad4ac0e1bbe882c.png?size=512")
-                        #view = RevealButton(coordinates, int(despawn_time))
-
-                        # FIX: Convert view to JSON-serializable format
-                        await plugin.rest.create_message(channels, embed=embed)#, components=view.build())
-                        #mclient.start_view(view)
+                        unique_key = f"poke_{pokemon_id}_{int(time())}"  # Create a unique key
+                        try:
+                            async with pokeCache.Caching() as cache:
+                                await cache.insert_mon_coords(unique_key, f"{latitude}, {longitude}", expiry=despawn_time)
+                            view = PokeButton(unique_key, int(despawn_time-time()))
+                            view.children[0].custom_id=unique_key
+                             # FIX: Convert view to JSON-serializable format
+                            mclient.start_view(view)
+                        except Exception as e:
+                            print("ERROR . . .\n",e)
+                            embed.add_field(name="📍 Coordinates", value=f"`{latitude}, {longitude}`", inline=False)
+                            await plugin.rest.create_message(channels, embed=embed)
+                        else:await plugin.rest.create_message(channels, embed=embed, components=view.build())
         
         await asyncio.sleep(300)  # Wait for 5 minutes before checking again
     
