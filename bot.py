@@ -5,7 +5,7 @@ import miru
 from bot.monAlert import activeAlert
 bot=lightbulb.BotApp(
             token=Config.TOKEN, 
-            default_enabled_guilds=[1336262785860112428],# Enable globally
+            default_enabled_guilds=[1336262785860112428,1120729950069202944],# Enable globally
             intents=hikari.Intents.ALL
         )
     

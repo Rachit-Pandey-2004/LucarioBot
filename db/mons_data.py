@@ -76,7 +76,6 @@ class PGDB:
         filter_maxLvl:int,
         filter_gender:str ,
         filter_mons: list,
-        check_all_mon: bool = True, 
         last_checking_time:time=None, 
         current_checking_time:time=None
         ):
@@ -96,16 +95,17 @@ class PGDB:
                 """
 
                 params = [last_checking_time,current_checking_time ,filter_minIv, filter_maxIv,filter_minCp,filter_maxCp,filter_minLvl,filter_maxLvl]
-                if filter_gender != "A":
+                if not filter_gender == "A":
                     query += " AND gender = $9"
                     params.append(filter_gender)
-                if not check_all_mon:
-                    placeholders = ", ".join(f"${i + 4}" for i in range(len(filter_mons)))  # Start from $4
-                    query += f" AND p_name IN ({placeholders})"
-                    params.extend(filter_mons)
-
+                if filter_mons and filter_mons[0] != 'all':
+                    if filter_gender == "A":
+                        query += " AND p_name = ANY($9::TEXT[])"  # Pokémon filter is $9 if gender is omitted
+                        params.append(filter_mons)
+                    else:
+                        query += " AND p_name = ANY($10::TEXT[])"  # Pokémon filter is $10 if gender is included
+                        params.append(filter_mons)
                 query += ";"
-
                 return await conn.fetch(query, *params)
 
         except Exception as e:

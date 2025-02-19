@@ -1,14 +1,16 @@
 import hikari
 import lightbulb
+from json import loads
 from db.channel_db import Channel_Data
+from os import getcwd
 import asyncio
 
 # Create a plugin
-plugin = lightbulb.Plugin("Owner Level Commands",default_enabled_guilds=[1336262785860112428])
+plugin = lightbulb.Plugin("Owner Level Commands",default_enabled_guilds=[1336262785860112428,1120729950069202944])
 
 # at present implementing level hardcoded later w'll add using db
 def ck_lvl(ctx:lightbulb.Context)->bool:
-    if not ctx.author.id==1283465824103043072:
+    if not ctx.author.id in [1283465824103043072,315712752113025034]:
         # await ctx.respond("❌ unAuthorized ...")
         return False
     else:
@@ -19,13 +21,13 @@ async def insert_config(guildId: int, channelId: int, minIv: int, maxIv: int, mi
         await cd.insert_channel_data(guildId, channelId, minIv, maxIv, minCp, maxCp, minLvl, maxLvl, gender, pokemon_list)
     pass
 # Echo command with parameter
-VALID_POKEMON = {"mewtwo", "rayquaza", "groudon", "kyogre", "dialga", "palkia", "all"}
+VALID_POKEMON = []
 
 
 @plugin.command
 @lightbulb.add_checks(lightbulb.Check(ck_lvl))
 @lightbulb.option("channel", "The message to echo",type=hikari.TextableGuildChannel,  required=True)
-@lightbulb.option("min_iv",'set miniv (0 to 100)',type=int,min_value=0,max_value=100,default=-1)
+@lightbulb.option("min_iv",'set miniv (0 to 100)',type=int,min_value=-1,max_value=100,default=-1)
 @lightbulb.option("max_iv",'set maxiv (0 to 100)',type=int,min_value=0,max_value=100,default=100)
 @lightbulb.option("min_cp",'set mincp f',type=int,default=-1)
 @lightbulb.option("max_cp",'set maxcp f',type=int,default=10000)
@@ -66,8 +68,32 @@ async def pokeset(ctx: lightbulb.Context) -> None:
     except lightbulb.errors.CheckFailure:
         await ctx.respond("‼️ There is a failure...", flags=hikari.MessageFlag.EPHEMERAL)
 
+@plugin.command
+@lightbulb.add_checks(lightbulb.Check(ck_lvl))
+@lightbulb.command("unsub", "unsubscribe channel")
+@lightbulb.implements(lightbulb.SlashCommand)
+async def unSub(ctx: lightbulb.Context) -> None:
+    # ctx.guild_id
+    #ctx.channel_id
+    try:
+        async with Channel_Data() as cd:
+            status=await cd.unsubscribe_channel(guildId=ctx.guild_id,channelId=ctx.channel_id)
+            data = await cd.get_subscribe_channel(ctx.guild_id, ctx.channel_id)
+            if status==True and data==None:
+                await ctx.respond("✅ unsubscribed successfully . . .")
+            else:
+                await ctx.respond("❌ channel was never subscribed . . .")
+    except Exception as e:
+        print("ERROR !! \n",e)
+        await ctx.respond("😵 Internal Error . .. ...")
+    pass
 # Load the plugin
 def load(bot: lightbulb.BotApp) -> None:
+    with open("%s/bot/mon_data.json"%getcwd(),"r")as fs:
+        data=loads(fs.read())
+        global VALID_POKEMON
+        VALID_POKEMON=data['mons']
+        fs.close()
     bot.add_plugin(plugin)
 
 def unload(bot: lightbulb.BotApp) -> None:

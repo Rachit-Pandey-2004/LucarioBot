@@ -184,22 +184,26 @@ class Channel_Data:
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
-                    # Explicitly delete all related data
+                    # Delete all related data and check if deletion occurred
                     await conn.execute(
-                        "DELETE FROM channel_pokemon_filters WHERE guildId = $1 AND channelId = $2;",
+                        "DELETE FROM channel_pokemon_filters WHERE guildId = $1 AND channelId = $2 RETURNING *;",
                         guildId, channelId
                     )
                     await conn.execute(
-                        "DELETE FROM channel_mons_config WHERE guildId = $1 AND channelId = $2;",
+                        "DELETE FROM channel_mons_config WHERE guildId = $1 AND channelId = $2 RETURNING *;",
                         guildId, channelId
                     )
-                    await conn.execute(
-                        "DELETE FROM channel_registry WHERE guildId = $1 AND channelId = $2;",
+                    delete_channel = await conn.execute(
+                        "DELETE FROM channel_registry WHERE guildId = $1 AND channelId = $2 RETURNING *;",
                         guildId, channelId
                     )
-    
-            print(f"🗑️ Successfully unsubscribed channel {channelId} from guild {guildId}.")
-            return True
+                    # Check if the channel was actually deleted
+                    if delete_channel:
+                        print(f"🗑️ Successfully unsubscribed channel {channelId} from guild {guildId}.")
+                        return True
+                    else:
+                        print(f"⚠️ Channel {channelId} was not found in guild {guildId}, nothing was deleted.")
+                        return False
     
         except Exception as e:
             print(f"❌ Failed to unsubscribe channel: {e}")

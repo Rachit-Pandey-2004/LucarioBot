@@ -22,17 +22,17 @@ class PokeButton(miru.View):
     async def send_coordinates(self, ctx:miru.ViewContext, button: miru.Button):
         print(ctx.custom_id)
         async with pokeCache.Caching() as cache:
-            # expired = await cache.check_expired(self.unique_key)
-            # if expired:
-            #     await ctx.respond("This Pokémon has despawned!", flags=hikari.MessageFlag.EPHEMERAL)
-            #     return
             coords = await cache.fetch_mon_coords(self.unique_key)
             if not coords== None:
-                await ctx.respond(f"Coordinates: `{coords}`", flags=hikari.MessageFlag.EPHEMERAL)
+                maps_url = f"https://www.google.com/maps?q={coords.replace(" ","")}"
+
+                # Create a Button for Google Maps Link
+                maps_button = miru.LinkButton(label="📍 Open in Maps", url=maps_url)
+                view = miru.View()
+                view.add_item(maps_button)
+                await ctx.respond(f"{coords}", components=view, flags=hikari.MessageFlag.EPHEMERAL)
             else:
                 await ctx.respond("Coordinates not found.", flags=hikari.MessageFlag.EPHEMERAL)
-        
-        
 async def send_alerts():
     """Fetch alerts from the database and send messages automatically."""
     
@@ -40,14 +40,10 @@ async def send_alerts():
         bool_all_mons=False
         async with Channel_Data() as db:
             channelTuple = await db.get_subscribe_channel()  # Fetch Pokémon alerts from DB
-            print(channelTuple)
             for channels,last_timestamp  in channelTuple:
                 # print(channels," | | ",last_timestamp )#channels,last_timestamp 
                 filter_dict,filter_list=await db.get_channel_filters(channelId=channels)
                 current_timestamp=round(time())
-                if filter_list[0]=="all":
-                    bool_all_mons=True
-                print(filter_dict)
                 async with PGDB() as psql:
                     data= await psql.fetch_filtered_data(
                         filter_minIv=filter_dict['miniv'],
@@ -58,11 +54,9 @@ async def send_alerts():
                         filter_minLvl=filter_dict['minlvl'],
                         filter_maxLvl=filter_dict['maxlvl'],
                         filter_gender=filter_dict['gender'] ,
-                        check_all_mon=bool_all_mons, 
                         last_checking_time=last_timestamp, 
                         current_checking_time=current_timestamp
-                        )
-                    await db.update_last_search(channels,current_timestamp)
+                    )
                     i=0
                     for mon in data:
                         i=i+1
@@ -88,11 +82,13 @@ async def send_alerts():
                         # Pokémon GIF (fallback to sprite)
                         gif_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/showdown/{pokemon_id}.gif"
                         static_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pokemon_id}.png"
-
+                        emo_cp='<:cp:1341654676688605265>'
+                        emo_lvl="<:lvl:1341654591422595135>"
+                        emo_iv="<:iv:1341654348534517790>"
                         embed = hikari.Embed(
                             description=(
                                 f"{mon_name} {gender_symbol}\n"
-                                f"**:Iv:** `{int(iv)}%`  | **:Lv:** `{level}` | **:Cp:** `{cp}`\n"
+                                f"**{emo_iv}** `{int(iv)}%`  | **{emo_lvl}** `{level}` | **{emo_cp}** `{cp}`\n"
                                 f"Despawns <t:{despawn_time}:R> | (<t:{despawn_time}:t>)"
                             ),
                             color=hikari.Color(embed_color),
@@ -105,7 +101,7 @@ async def send_alerts():
                         unique_key = f"poke_{pokemon_id}_{int(time())}"  # Create a unique key
                         try:
                             async with pokeCache.Caching() as cache:
-                                await cache.insert_mon_coords(unique_key, f"{latitude}, {longitude}", expiry=despawn_time)
+                                await cache.insert_mon_coords(unique_key, f"{latitude}, {longitude}", expiry=int(despawn_time-time()))
                             view = PokeButton(unique_key, int(despawn_time-time()))
                             view.children[0].custom_id=unique_key
                              # FIX: Convert view to JSON-serializable format
@@ -114,7 +110,9 @@ async def send_alerts():
                             print("ERROR . . .\n",e)
                             embed.add_field(name="📍 Coordinates", value=f"`{latitude}, {longitude}`", inline=False)
                             await plugin.rest.create_message(channels, embed=embed)
-                        else:await plugin.rest.create_message(channels, embed=embed, components=view.build())
+                        else:
+                            await plugin.rest.create_message(channels, embed=embed, components=view.build())
+                            await db.update_last_search(channels,current_timestamp)
         
         await asyncio.sleep(300)  # Wait for 5 minutes before checking again
     
